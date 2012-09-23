@@ -180,3 +180,7 @@ The same problem applies to zero bits prepended to the message, and a
 similar solution is used.  Instead of starting the CRC computation with
 a remainder of 0, an initial remainder of all ones is used.  As long as
 you start the same way on decoding, it doesn't make a difference.
+<<<<<<< HEAD
+=======
+
+>>>>>>> b00e38e... crc32 - 13 patches in 1 commit

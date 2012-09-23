@@ -53,6 +53,11 @@ struct chksum_desc_ctx {
 	u32 crc;
 };
 
+/*
+ * Steps through buffer one byte at at time, calculates reflected
+ * crc using table.
+ */
+
 
 static int chksum_init(struct shash_desc *desc)
 {
