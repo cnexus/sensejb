@@ -21,6 +21,9 @@ config PRIMA_WLAN_LFR
 
 config PRIMA_WLAN_OKC
 	bool "Enable the Prima WLAN Opportunistic Key Caching feature"
+
+config HTC_WIFI_NVS
+	bool "Read WiFi data from HTC NVS"
 	default n
 
 endif # PRIMA_WLAN
