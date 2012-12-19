@@ -1335,6 +1335,7 @@ out:
 
 #ifdef CONFIG_CPU_VOLTAGE_TABLE
 
+
 ssize_t acpuclk_get_vdd_levels_str(char *buf, int isApp) {
 
 	int i, len = 0;
