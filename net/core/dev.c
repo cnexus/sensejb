@@ -1198,6 +1198,12 @@ static inline int deliver_skb(struct sk_buff *skb,
 }
 
 
+
+/*
+ *	Support routine. Sends outgoing frames to any network
+ *	taps currently in use.
+ */
+
 static void dev_queue_xmit_nit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct packet_type *ptype;
