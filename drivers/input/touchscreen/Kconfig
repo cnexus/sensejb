@@ -1011,6 +1011,11 @@ config TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE_END
 	string "Sweep2Wake end button name"
 	default "MENU"
 
+config CMDLINE_OPTIONS
+	config CMDLINE_OPTIONS
+	bool "Enable cmdline command parsing"
+	default n
+	
 config TOUCHSCREEN_MAX11871
         tristate "Maxim max11871 touchscreen"
         depends on I2C
