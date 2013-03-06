@@ -20,26 +20,11 @@
 # define BE_TABLE_ROWS 1
 # define BE_TABLE_SIZE (1 << CRC_BE_BITS)
 #endif
-<<<<<<< HEAD
 
 static uint32_t crc32table_le[LE_TABLE_ROWS][256];
 static uint32_t crc32table_be[BE_TABLE_ROWS][256];
 static uint32_t crc32ctable_le[LE_TABLE_ROWS][256];
 
-=======
-
-static uint32_t crc32table_le[LE_TABLE_ROWS][256];
-static uint32_t crc32table_be[BE_TABLE_ROWS][256];
-static uint32_t crc32ctable_le[LE_TABLE_ROWS][256];
-
-/**
- * crc32init_le() - allocate and initialize LE table data
- *
- * crc is the crc of the byte i; other entries are filled in based on the
- * fact that crctable[i^j] = crctable[i] ^ crctable[j].
- *
- */
->>>>>>> b00e38e... crc32 - 13 patches in 1 commit
 static void crc32init_le_generic(const uint32_t polynomial,
 				 uint32_t (*tab)[256])
 {
@@ -72,12 +57,6 @@ static void crc32cinit_le(void)
 	crc32init_le_generic(CRC32C_POLY_LE, crc32ctable_le);
 }
 
-<<<<<<< HEAD
-=======
-/**
- * crc32init_be() - allocate and initialize BE table data
- */
->>>>>>> b00e38e... crc32 - 13 patches in 1 commit
 static void crc32init_be(void)
 {
 	unsigned i, j;
@@ -149,3 +128,4 @@ int main(int argc, char** argv)
 
 	return 0;
 }
+
