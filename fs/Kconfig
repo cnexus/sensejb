@@ -10,7 +10,7 @@ config DCACHE_WORD_ACCESS
 
 config VFS_CACHE_PRESSURE
   	int "vfs Cache Pressure"
-  	default 100
+  	default 50
   	help
 
 if BLOCK
