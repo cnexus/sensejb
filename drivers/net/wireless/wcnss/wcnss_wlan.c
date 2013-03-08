@@ -11,6 +11,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
@@ -21,20 +22,26 @@
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
 #include <linux/gpio.h>
+#include <linux/wakelock.h>
 #include <mach/peripheral-loader.h>
-
-#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
-#include "wcnss_prealloc.h"
-#endif
 
 #define DEVICE "wcnss_wlan"
 #define VERSION "1.01"
 #define WCNSS_PIL_DEVICE "wcnss"
 
+/* module params */
 #define WCNSS_CONFIG_UNSPECIFIED (-1)
 static int has_48mhz_xo = WCNSS_CONFIG_UNSPECIFIED;
 module_param(has_48mhz_xo, int, S_IWUSR | S_IRUGO);
 MODULE_PARM_DESC(has_48mhz_xo, "Is an external 48 MHz XO present");
+
+static DEFINE_SPINLOCK(reg_spinlock);
+
+#define MSM_RIVA_PHYS			0x03204000
+
+#define RIVA_SPARE_OFFSET		0x0b4
+#define RIVA_SSR_BIT			BIT(23)
+#define RIVA_SUSPEND_BIT		BIT(24)
 
 static struct {
 	struct platform_device *pdev;
@@ -51,6 +58,8 @@ static struct {
 	void		(*tm_notify)(struct device *, int);
 	struct wcnss_wlan_config wlan_config;
 	struct delayed_work wcnss_work;
+	struct wake_lock wcnss_wake_lock;
+	void __iomem *msm_wcnss_base;
 } *penv = NULL;
 
 static ssize_t wcnss_serial_number_show(struct device *dev,
@@ -63,7 +72,7 @@ static ssize_t wcnss_serial_number_show(struct device *dev,
 }
 
 static ssize_t wcnss_serial_number_store(struct device *dev,
-		struct device_attribute *attr, const char * buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	unsigned int value;
 
@@ -91,7 +100,7 @@ static ssize_t wcnss_thermal_mitigation_show(struct device *dev,
 }
 
 static ssize_t wcnss_thermal_mitigation_store(struct device *dev,
-		struct device_attribute *attr, const char * buf, size_t count)
+		struct device_attribute *attr, const char *buf, size_t count)
 {
 	int value;
 
@@ -138,9 +147,9 @@ static void wcnss_remove_sysfs(struct device *dev)
 
 static void wcnss_post_bootup(struct work_struct *work)
 {
-	pr_info("[WCNSS]%s: Cancel APPS vote for Iris & Riva\n", __func__);
+	pr_info("%s: Cancel APPS vote for Iris & Riva\n", __func__);
 
-	
+	/* Since Riva is up, cancel any APPS vote for Iris & Riva VREGs  */
 	wcnss_wlan_power(&penv->pdev->dev, &penv->wlan_config,
 		WCNSS_WLAN_SWITCH_OFF);
 }
@@ -178,14 +187,20 @@ wcnss_wlan_ctrl_probe(struct platform_device *pdev)
 
 	penv->smd_channel_ready = 1;
 
-	pr_info("[WCNSS]%s: SMD ctrl channel up\n", __func__);
+	pr_info("%s: SMD ctrl channel up\n", __func__);
 
-	
+	/* Schedule a work to do any post boot up activity */
 	INIT_DELAYED_WORK(&penv->wcnss_work, wcnss_post_bootup);
 	schedule_delayed_work(&penv->wcnss_work, msecs_to_jiffies(10000));
 
 	return 0;
 }
+
+void wcnss_flush_delayed_boot_votes()
+{
+	flush_delayed_work_sync(&penv->wcnss_work);
+}
+EXPORT_SYMBOL(wcnss_flush_delayed_boot_votes);
 
 static int __devexit
 wcnss_wlan_ctrl_remove(struct platform_device *pdev)
@@ -193,7 +208,7 @@ wcnss_wlan_ctrl_remove(struct platform_device *pdev)
 	if (penv)
 		penv->smd_channel_ready = 0;
 
-	pr_info("[WCNSS]%s: SMD ctrl channel down\n", __func__);
+	pr_info("%s: SMD ctrl channel down\n", __func__);
 
 	return 0;
 }
@@ -269,10 +284,10 @@ EXPORT_SYMBOL(wcnss_wlan_register_pm_ops);
 void wcnss_wlan_unregister_pm_ops(struct device *dev,
 				const struct dev_pm_ops *pm_ops)
 {
-	if (penv && dev && penv->pdev && (dev == &penv->pdev->dev) && pm_ops && penv->pm_ops) {
+	if (penv && dev && (dev == &penv->pdev->dev) && pm_ops) {
 		if (pm_ops->suspend != penv->pm_ops->suspend ||
 				pm_ops->resume != penv->pm_ops->resume)
-			pr_err("[WCNSS]PM APIs dont match with registered APIs\n");
+			pr_err("PM APIs dont match with registered APIs\n");
 		penv->pm_ops = NULL;
 	}
 }
@@ -305,23 +320,115 @@ unsigned int wcnss_get_serial_number(void)
 }
 EXPORT_SYMBOL(wcnss_get_serial_number);
 
+void wcnss_ssr_boot_notify(void)
+{
+	void __iomem *pmu_spare_reg;
+	u32 reg = 0;
+	unsigned long flags;
+
+	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
+
+	spin_lock_irqsave(&reg_spinlock, flags);
+	reg = readl_relaxed(pmu_spare_reg);
+	reg |= RIVA_SSR_BIT;
+	writel_relaxed(reg, pmu_spare_reg);
+	spin_unlock_irqrestore(&reg_spinlock, flags);
+}
+EXPORT_SYMBOL(wcnss_ssr_boot_notify);
+
+static int enable_wcnss_suspend_notify;
+
+static int enable_wcnss_suspend_notify_set(const char *val,
+				struct kernel_param *kp)
+{
+	int ret;
+
+	ret = param_set_int(val, kp);
+	if (ret)
+		return ret;
+
+	if (enable_wcnss_suspend_notify)
+		pr_info("Suspend notification activated for wcnss\n");
+
+	return 0;
+}
+module_param_call(enable_wcnss_suspend_notify, enable_wcnss_suspend_notify_set,
+		param_get_int, &enable_wcnss_suspend_notify, S_IRUGO | S_IWUSR);
+
+static void wcnss_suspend_notify(void)
+{
+	void __iomem *pmu_spare_reg;
+	u32 reg = 0;
+	unsigned long flags;
+
+	/* For Riva */
+	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
+
+	spin_lock_irqsave(&reg_spinlock, flags);
+	reg = readl_relaxed(pmu_spare_reg);
+	reg |= RIVA_SUSPEND_BIT;
+	writel_relaxed(reg, pmu_spare_reg);
+	spin_unlock_irqrestore(&reg_spinlock, flags);
+}
+
+static void wcnss_resume_notify(void)
+{
+	void __iomem *pmu_spare_reg;
+	u32 reg = 0;
+	unsigned long flags;
+
+	/* For Riva */
+	pmu_spare_reg = penv->msm_wcnss_base + RIVA_SPARE_OFFSET;
+	spin_lock_irqsave(&reg_spinlock, flags);
+	reg = readl_relaxed(pmu_spare_reg);
+	reg &= ~RIVA_SUSPEND_BIT;
+	writel_relaxed(reg, pmu_spare_reg);
+	spin_unlock_irqrestore(&reg_spinlock, flags);
+}
+
 static int wcnss_wlan_suspend(struct device *dev)
 {
+	int ret = 0;
+
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->suspend)
-		return penv->pm_ops->suspend(dev);
+	    penv->pm_ops && penv->pm_ops->suspend) {
+		ret = penv->pm_ops->suspend(dev);
+		if (ret == 0 && enable_wcnss_suspend_notify)
+			wcnss_suspend_notify();
+		return ret;
+	}
 	return 0;
 }
 
 static int wcnss_wlan_resume(struct device *dev)
 {
+	int ret = 0;
+
 	if (penv && dev && (dev == &penv->pdev->dev) &&
 	    penv->smd_channel_ready &&
-	    penv->pm_ops && penv->pm_ops->resume)
-		return penv->pm_ops->resume(dev);
+	    penv->pm_ops && penv->pm_ops->resume) {
+		ret = penv->pm_ops->resume(dev);
+		if (ret == 0 && enable_wcnss_suspend_notify)
+			wcnss_resume_notify();
+		return ret;
+	}
 	return 0;
 }
+
+void wcnss_prevent_suspend()
+{
+	if (penv)
+		wake_lock(&penv->wcnss_wake_lock);
+}
+EXPORT_SYMBOL(wcnss_prevent_suspend);
+
+void wcnss_allow_suspend()
+{
+	if (penv)
+		wake_unlock(&penv->wcnss_wake_lock);
+}
+EXPORT_SYMBOL(wcnss_allow_suspend);
 
 static int
 wcnss_trigger_config(struct platform_device *pdev)
@@ -329,12 +436,12 @@ wcnss_trigger_config(struct platform_device *pdev)
 	int ret;
 	struct qcom_wcnss_opts *pdata;
 
-	
+	/* make sure we are only triggered once */
 	if (penv->triggered)
 		return 0;
 	penv->triggered = 1;
 
-	
+	/* initialize the WCNSS device configuration */
 	pdata = pdev->dev.platform_data;
 	if (WCNSS_CONFIG_UNSPECIFIED == has_48mhz_xo)
 		has_48mhz_xo = pdata->has_48mhz_xo;
@@ -345,21 +452,21 @@ wcnss_trigger_config(struct platform_device *pdev)
 	penv->gpios_5wire = platform_get_resource_byname(pdev, IORESOURCE_IO,
 							"wcnss_gpios_5wire");
 
-	
+	/* allocate 5-wire GPIO resources */
 	if (!penv->gpios_5wire) {
 		dev_err(&pdev->dev, "insufficient IO resources\n");
 		ret = -ENOENT;
 		goto fail_gpio_res;
 	}
 
-	
+	/* Configure 5 wire GPIOs */
 	ret = wcnss_gpios_config(penv->gpios_5wire, true);
 	if (ret) {
 		dev_err(&pdev->dev, "WCNSS gpios config failed.\n");
 		goto fail_gpio_res;
 	}
 
-	
+	/* power up the WCNSS */
 	ret = wcnss_wlan_power(&pdev->dev, &penv->wlan_config,
 					WCNSS_WLAN_SWITCH_ON);
 	if (ret) {
@@ -367,7 +474,7 @@ wcnss_trigger_config(struct platform_device *pdev)
 		goto fail_power;
 	}
 
-	
+	/* trigger initialization of the WCNSS */
 	penv->pil = pil_get(WCNSS_PIL_DEVICE);
 	if (IS_ERR(penv->pil)) {
 		dev_err(&pdev->dev, "Peripheral Loader failed on WCNSS.\n");
@@ -376,7 +483,7 @@ wcnss_trigger_config(struct platform_device *pdev)
 		goto fail_pil;
 	}
 
-	
+	/* allocate resources */
 	penv->mmio_res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
 							"wcnss_mmio");
 	penv->tx_irq_res = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
@@ -390,12 +497,23 @@ wcnss_trigger_config(struct platform_device *pdev)
 		goto fail_res;
 	}
 
-	
+	/* register sysfs entries */
 	ret = wcnss_create_sysfs(&pdev->dev);
 	if (ret)
 		goto fail_sysfs;
 
+	wake_lock_init(&penv->wcnss_wake_lock, WAKE_LOCK_SUSPEND, "wcnss");
+
+	penv->msm_wcnss_base = ioremap(MSM_RIVA_PHYS, SZ_256);
+	if (!penv->msm_wcnss_base) {
+		pr_err("%s: ioremap wcnss physical failed\n", __func__);
+		goto fail_wake;
+	}
+
 	return 0;
+
+fail_wake:
+	wake_lock_destroy(&penv->wcnss_wake_lock);
 
 fail_sysfs:
 fail_res:
@@ -433,28 +551,19 @@ static struct miscdevice wcnss_misc = {
 	.name = DEVICE,
 	.fops = &wcnss_node_fops,
 };
-#endif 
+#endif /* ifndef MODULE */
 
-#ifdef CONFIG_PERFLOCK
-#include <mach/perflock.h>
-struct perf_lock qcom_wlan_perf_lock;
-EXPORT_SYMBOL(qcom_wlan_perf_lock);
-#endif 
 
 static int __devinit
 wcnss_wlan_probe(struct platform_device *pdev)
 {
-	
+	/* verify we haven't been called more than once */
 	if (penv) {
 		dev_err(&pdev->dev, "cannot handle multiple devices.\n");
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_PERFLOCK
-        perf_lock_init(&qcom_wlan_perf_lock, TYPE_PERF_LOCK, PERF_LOCK_HIGHEST, "qcom-wifi-perf");
-#endif 
-
-	
+	/* create an environment to track the device */
 	penv = kzalloc(sizeof(*penv), GFP_KERNEL);
 	if (!penv) {
 		dev_err(&pdev->dev, "cannot allocate device memory.\n");
@@ -464,11 +573,26 @@ wcnss_wlan_probe(struct platform_device *pdev)
 
 #ifdef MODULE
 
+	/*
+	 * Since we were built as a module, we are running because
+	 * the module was loaded, therefore we assume userspace
+	 * applications are available to service PIL, so we can
+	 * trigger the WCNSS configuration now
+	 */
 	pr_info(DEVICE " probed in MODULE mode\n");
 	return wcnss_trigger_config(pdev);
 
 #else
 
+	/*
+	 * Since we were built into the kernel we'll be called as part
+	 * of kernel initialization.  We don't know if userspace
+	 * applications are available to service PIL at this time
+	 * (they probably are not), so we simply create a device node
+	 * here.  When userspace is available it should touch the
+	 * device so that we know that WCNSS configuration can take
+	 * place
+	 */
 	pr_info(DEVICE " probed in built-in mode\n");
 	return misc_register(&wcnss_misc);
 
@@ -500,17 +624,10 @@ static struct platform_driver wcnss_wlan_driver = {
 
 static int __init wcnss_wlan_init(void)
 {
-	int ret = 0;
 	platform_driver_register(&wcnss_wlan_driver);
 	platform_driver_register(&wcnss_wlan_ctrl_driver);
 
-#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
-	ret = wcnss_prealloc_init();
-	if (ret < 0)
-		pr_err("wcnss: pre-allocation failed\n");
-#endif
-
-	return ret;
+	return 0;
 }
 
 static void __exit wcnss_wlan_exit(void)
@@ -526,9 +643,6 @@ static void __exit wcnss_wlan_exit(void)
 
 	platform_driver_unregister(&wcnss_wlan_ctrl_driver);
 	platform_driver_unregister(&wcnss_wlan_driver);
-#ifdef CONFIG_WCNSS_MEM_PRE_ALLOC
-	wcnss_prealloc_deinit();
-#endif
 }
 
 module_init(wcnss_wlan_init);
@@ -537,3 +651,4 @@ module_exit(wcnss_wlan_exit);
 MODULE_LICENSE("GPL v2");
 MODULE_VERSION(VERSION);
 MODULE_DESCRIPTION(DEVICE "Driver");
+
