@@ -3095,6 +3095,9 @@ static VOS_STATUS hdd_update_config_from_nv(hdd_context_t* pHddCtx)
       return VOS_STATUS_E_FAILURE;
    }
 
+#endif
+
+
 #endif /* FEATURE_WLAN_INTEGRATED_SOC */
 
    return VOS_STATUS_SUCCESS;
