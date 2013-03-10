@@ -1637,7 +1637,6 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 
 			
 			data->governor = policy->governor;
-			if (!cpu_online(1)) cpu_up(1);
 			if (__cpufreq_governor(data, CPUFREQ_GOV_START)) {
 				
 				pr_debug("starting governor %s failed\n",
