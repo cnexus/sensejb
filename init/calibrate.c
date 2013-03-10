@@ -238,4 +238,3 @@ void __cpuinit calibrate_delay(void)
 	loops_per_jiffy = lpj;
 	printed = true;
 }
-
