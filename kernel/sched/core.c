@@ -4480,8 +4480,6 @@ static void destroy_sched_domains(struct sched_domain *sd, int cpu)
 		destroy_sched_domain(sd, cpu);
 }
 
-<<<<<<< HEAD
-=======
 /*
  * Keep a special pointer to the highest sched_domain that has
  * SD_SHARE_PKG_RESOURCE set (Last Level Cache Domain) for this
@@ -4496,7 +4494,6 @@ static void destroy_sched_domains(struct sched_domain *sd, int cpu)
  * the cpumask of the domain), this allows us to quickly tell if
  * two cpus are in the same cache domain, see cpus_share_cache().
  */
->>>>>>> 139f8da... sched: Improve scalability via 'CPU buddies', which withstand random perturbations
 DEFINE_PER_CPU(struct sched_domain *, sd_llc);
 DEFINE_PER_CPU(int, sd_llc_id);
 
