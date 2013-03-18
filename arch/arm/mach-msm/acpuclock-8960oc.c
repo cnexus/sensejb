@@ -585,8 +585,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_slow[] = {
 	{ 1, {  1809000, HFPLL, 1, 0, 0x43 }, L2(20), 1275000 },
 	{ 1, {  1890000, HFPLL, 1, 0, 0x46 }, L2(21), 1300000 },
 	{ 1, {  1998000, HFPLL, 1, 0, 0x48 }, L2(22), 1350000 },
-        { 1, {  2106000, HFPLL, 1, 0, 0x4E }, L2(23), 1350000 },
-	{ 0, { 0 } }
+    	{ 0, { 0 } }
 };
 
 static struct acpu_level acpu_freq_tbl_8960_kraitv2_nom[] = {
@@ -618,8 +617,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_nom[] = {
 	{ 1, {  1809000, HFPLL, 1, 0, 0x43 }, L2(20), 1275000 },
 	{ 1, {  1890000, HFPLL, 1, 0, 0x46 }, L2(21), 1275000 },
 	{ 1, {  1998000, HFPLL, 1, 0, 0x48 }, L2(22), 1325000 },
-        { 1, {  2106000, HFPLL, 1, 0, 0x4E }, L2(23), 1350000 },
-	{ 0, { 0 } }
+        { 0, { 0 } }
 };
 
 static struct acpu_level acpu_freq_tbl_8960_kraitv2_fast[] = {
@@ -651,8 +649,7 @@ static struct acpu_level acpu_freq_tbl_8960_kraitv2_fast[] = {
 	{ 1, {  1809000, HFPLL, 1, 0, 0x43 }, L2(20), 1250000 },
 	{ 1, {  1890000, HFPLL, 1, 0, 0x46 }, L2(21), 1275000 },
 	{ 1, {  1998000, HFPLL, 1, 0, 0x48 }, L2(22), 1300000 },
-        { 1, {  2106000, HFPLL, 1, 0, 0x4E }, L2(23), 1350000 },
-	{ 0, { 0 } }
+        { 0, { 0 } }
 };
 
 #undef L2
