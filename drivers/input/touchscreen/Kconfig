@@ -1015,6 +1015,10 @@ config CMDLINE_OPTIONS
 	config CMDLINE_OPTIONS
 	bool "Enable cmdline command parsing"
 	default n
+
+config TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE_GESTURES
+        tristate "Sweep2Wake with gestures for SYNAPTICS_3k based touchscreens"
+        default n
 	
 config TOUCHSCREEN_MAX11871
         tristate "Maxim max11871 touchscreen"

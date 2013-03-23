@@ -57,7 +57,11 @@ obj-$(CONFIG_TOUCHSCREEN_STMPE)		+= stmpe-ts.o
 obj-$(CONFIG_TOUCHSCREEN_TI_TSCADC)	+= ti_tscadc.o
 obj-$(CONFIG_TOUCHSCREEN_TNETV107X)	+= tnetv107x-ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI)	+= synaptics_i2c_rmi.o
+ifdef CONFIG_TOUCHSCREEN_SYNAPTICS_SWEEP2WAKE_GESTURES
+obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_3K)       += synaptics_3200gest.o rmi_dev.o
+else
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_3K)       += synaptics_3200.o rmi_dev.o
+endif
 obj-$(CONFIG_TOUCHSCREEN_MAX11871)      += max11871.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_RMI4_I2C) +=synaptics/
 obj-$(CONFIG_TOUCHSCREEN_TOUCHIT213)	+= touchit213.o
