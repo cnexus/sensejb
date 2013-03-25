@@ -56,7 +56,7 @@
  * towards the ideal frequency and slower after it has passed it. Similarly,
  * lowering the frequency towards the ideal frequency is faster than below it.
  */
-#define DEFAULT_AWAKE_IDEAL_FREQ 1512000
+#define DEFAULT_AWAKE_IDEAL_FREQ 1000000
 static unsigned int awake_ideal_freq;
 
 /*
@@ -868,8 +868,8 @@ static int __init cpufreq_asswax_init(void)
 	}
 
 	// Scale up is high priority
-	up_wq = create_workqueue("asswax_up");
-	down_wq = create_workqueue("asswax_down");
+	up_wq = create_workqueue("kasswax_up");
+	down_wq = create_workqueue("kasswax_down");
 	if (!up_wq || !down_wq)
 		return -ENOMEM;
 
