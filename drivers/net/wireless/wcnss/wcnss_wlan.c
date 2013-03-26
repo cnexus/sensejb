@@ -435,11 +435,10 @@ static struct miscdevice wcnss_misc = {
 };
 #endif 
 
-#ifdef CONFIG_PERFLOCK
 #include <mach/perflock.h>
 struct perf_lock qcom_wlan_perf_lock;
 EXPORT_SYMBOL(qcom_wlan_perf_lock);
-#endif 
+
 
 static int __devinit
 wcnss_wlan_probe(struct platform_device *pdev)
