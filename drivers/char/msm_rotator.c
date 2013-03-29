@@ -36,7 +36,7 @@
 #include <mach/msm_subsystem_map.h>
 #include <mach/iommu_domains.h>
 
-#define HTC_ROTATOR_PERFORMANCE
+//#define HTC_ROTATOR_PERFORMANCE
 
 #ifdef HTC_ROTATOR_PERFORMANCE
 #include <linux/pm_qos.h>
