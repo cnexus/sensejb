@@ -1807,10 +1807,10 @@ static void synaptics_ts_finger_func(struct synaptics_ts_data *ts)
 								exec_count = false;
 							}
 						}
-						if (((scr_suspended == false) || (s2w_switch == 5)) && (minx < 200) && (maxx > 460) && (maxx < 660)) {
+						if (((scr_suspended == false) || (s2w_switch == 5)) && (minx < 200) && (maxx > 380) && (maxx < 460)) {
 							if (exec_count) {
 								printk(KERN_INFO "[sweep2wake]: Vol Way Down");
-								s2w_pwr_delay = 1400;
+								s2w_pwr_delay = 1200;
 								s2w_key = KEY_VOLUMEDOWN;
 								sweep2wake_pwrtrigger();
 								exec_count = false;
